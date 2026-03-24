@@ -91,8 +91,9 @@ export function printSvg(graph: GitGraph, settings: Settings, horizontal: boolea
       }
     }
 
+    const filled = !info.isMerge || !!settings.noMergeCircle;
     elements.push(
-      svgCommitDot(idx, column, branchColor, !info.isMerge, horizontal)
+      svgCommitDot(idx, column, branchColor, filled, horizontal)
     );
   }
 
