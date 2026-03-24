@@ -91,9 +91,11 @@ export function printSvg(graph: GitGraph, settings: Settings, horizontal: boolea
       }
     }
 
-    elements.push(
-      svgCommitDot(idx, column, branchColor, !info.isMerge, horizontal)
-    );
+    if (!settings.mergesOnly || info.isMerge) {
+      elements.push(
+        svgCommitDot(idx, column, branchColor, !info.isMerge, horizontal)
+      );
+    }
   }
 
   const [xMax, yMax] = commitCoord(maxIdx + 1, maxColumn + 1, horizontal);

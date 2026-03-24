@@ -25,7 +25,8 @@ import {
   Occ,
   occOverlaps,
 } from '../src/print/unicode';
-import { Characters } from '../src/settings';
+import { Characters, BranchSettings, BranchSettingsDef, MergePatterns } from '../src/settings';
+import { printUnicode } from '../src/print/unicode';
 
 // Test constants matching the Rust tests
 const DEF_CH = SPACE;
@@ -583,5 +584,71 @@ describe('Occ overlaps', () => {
     };
     expect(occOverlaps(occ, 3, 4)).toBe(true);
     expect(occOverlaps(occ, 6, 8)).toBe(false);
+  });
+});
+
+describe('printUnicode mergesOnly', () => {
+  it('hides dots on non-merge commits and shows only merge circles', () => {
+    const graph = {
+      commits: [
+        {
+          oid: 'merge1',
+          isMerge: true,
+          parents: ['p1', 'p2'] as [string | null, string | null],
+          children: [],
+          branches: [0],
+          tags: [],
+          branchTrace: 0,
+          data: {
+            oid: 'merge1', summary: 'Merge', parentOids: ['p1', 'p2'], message: 'Merge',
+            author: { name: '', email: '', timestamp: 0, timezoneOffset: 0 },
+            committer: { name: '', email: '', timestamp: 0, timezoneOffset: 0 },
+          },
+        },
+        {
+          oid: 'p1',
+          isMerge: false,
+          parents: [null, null] as [string | null, string | null],
+          children: ['merge1'],
+          branches: [0],
+          tags: [],
+          branchTrace: 0,
+          data: {
+            oid: 'p1', summary: 'Regular', parentOids: [], message: 'Regular',
+            author: { name: '', email: '', timestamp: 0, timezoneOffset: 0 },
+            committer: { name: '', email: '', timestamp: 0, timezoneOffset: 0 },
+          },
+        },
+      ],
+      indices: new Map([['merge1', 0], ['p1', 1]]),
+      allBranches: [
+        {
+          target: 'merge1', mergeTarget: null, sourceBranch: null, targetBranch: null,
+          name: 'main', persistence: 0, isRemote: false, isMerged: false, isTag: false,
+          visual: { orderGroup: 0, targetOrderGroup: null, sourceOrderGroup: null, termColor: 12, svgColor: 'blue', column: 0 },
+          range: [0, 1] as [number | null, number | null],
+        },
+      ],
+      head: { oid: 'merge1', name: 'main', isBranch: true },
+    } as any;
+
+    const settings = {
+      reverseCommitOrder: false, debug: false, compact: true, colored: false,
+      includeRemote: false, format: { type: 'OneLine' as const }, wrapping: null,
+      characters: Characters.thin(), branchOrder: { type: 'ShortestFirst', forward: true },
+      branches: BranchSettings.from(BranchSettingsDef.none()),
+      mergePatterns: MergePatterns.default(),
+      mergesOnly: true,
+    };
+
+    const [gLines] = printUnicode(graph, settings);
+    const chars = Characters.thin();
+
+    // Merge commit (index 0) should still have ○
+    expect(gLines[0]).toContain(chars.chars[CIRCLE]);
+
+    // Regular commit (index 1) should NOT have ● — should have │ instead
+    expect(gLines[1]).not.toContain(chars.chars[DOT]);
+    expect(gLines[1]).toContain(chars.chars[VER]);
   });
 });

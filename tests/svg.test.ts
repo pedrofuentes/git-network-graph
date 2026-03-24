@@ -198,4 +198,34 @@ describe('printSvg', () => {
     expect(hMatch![1]).toBe(vMatch![2]); // h width = v height
     expect(hMatch![2]).toBe(vMatch![1]); // h height = v width
   });
+
+  it('skips commit circles for non-merge commits when mergesOnly is true', () => {
+    const graph = {
+      commits: [
+        {
+          oid: 'merge1', isMerge: true,
+          parents: ['p1', null] as [string | null, string | null],
+          children: [], branches: [0], tags: [], branchTrace: 0,
+        },
+        {
+          oid: 'p1', isMerge: false,
+          parents: [null, null] as [string | null, string | null],
+          children: ['merge1'], branches: [0], tags: [], branchTrace: 0,
+        },
+      ],
+      indices: new Map([['merge1', 0], ['p1', 1]]),
+      allBranches: [{ visual: { column: 0, svgColor: 'blue' }, range: [0, 1] }],
+      head: { oid: 'merge1', name: 'main', isBranch: true },
+    } as any;
+
+    // Without mergesOnly: 2 circles (merge + regular)
+    const svgDefault = printSvg(graph, { debug: false } as any);
+    const defaultCircles = (svgDefault.match(/<circle/g) || []).length;
+    expect(defaultCircles).toBe(2);
+
+    // With mergesOnly: only 1 circle (merge only)
+    const svgMergesOnly = printSvg(graph, { debug: false, mergesOnly: true } as any);
+    const mergesCircles = (svgMergesOnly.match(/<circle/g) || []).length;
+    expect(mergesCircles).toBe(1);
+  });
 });

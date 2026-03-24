@@ -703,10 +703,16 @@ export function printUnicode(
     const idxMap = indexMap[idx];
 
     // Draw commit dot
+    let commitChar: number;
+    if (settings.mergesOnly) {
+      commitChar = info.isMerge ? CIRCLE : VER;
+    } else {
+      commitChar = info.isMerge ? CIRCLE : DOT;
+    }
     grid.set(
       column * 2,
       idxMap,
-      info.isMerge ? CIRCLE : DOT,
+      commitChar,
       branch.visual.termColor,
       branch.persistence
     );

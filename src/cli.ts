@@ -169,6 +169,7 @@ async function main() {
     .option('--svg', 'Render graph as SVG instead of text-based.')
     .option('--svg-file [path]', 'Write SVG to a file. Default: git-graph.svg in repo dir.')
     .option('--horizontal', 'Render SVG horizontally (left-to-right). Only with --svg/--svg-file.')
+    .option('--merges-only', 'Only show dots on merge commits.')
     .option('-S, --sparse', 'Print a less compact graph.')
     .option('-d, --debug', 'Additional debug output and graphics.')
     .option(
@@ -265,6 +266,7 @@ async function main() {
       branchOrder: { type: 'ShortestFirst', forward: true },
       branches: BranchSettings.from(modelDef),
       mergePatterns: MergePatterns.default(),
+      mergesOnly: !!options.mergesOnly,
     };
 
     const svgFile = options.svgFile !== undefined
