@@ -279,5 +279,4 @@ export interface Settings {
   branchOrder: BranchOrder;
   branches: BranchSettings;
   mergePatterns: MergePatterns;
-  noMergeCircle?: boolean;
 }

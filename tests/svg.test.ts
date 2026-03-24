@@ -198,46 +198,4 @@ describe('printSvg', () => {
     expect(hMatch![1]).toBe(vMatch![2]); // h width = v height
     expect(hMatch![2]).toBe(vMatch![1]); // h height = v width
   });
-
-  it('uses filled dot for merge commits when noMergeCircle is true', () => {
-    const graph = {
-      commits: [
-        {
-          oid: 'merge1',
-          isMerge: true,
-          parents: ['p1', null] as [string | null, string | null],
-          children: [],
-          branches: [0],
-          tags: [],
-          branchTrace: 0,
-        },
-        {
-          oid: 'p1',
-          isMerge: false,
-          parents: [null, null] as [string | null, string | null],
-          children: ['merge1'],
-          branches: [0],
-          tags: [],
-          branchTrace: 0,
-        },
-      ],
-      indices: new Map([['merge1', 0], ['p1', 1]]),
-      allBranches: [
-        {
-          visual: { column: 0, svgColor: 'blue' },
-          range: [0, 1],
-        },
-      ],
-      head: { oid: 'merge1', name: 'main', isBranch: true },
-    } as any;
-
-    // Without noMergeCircle: merge uses hollow circle (fill="white")
-    const svgDefault = printSvg(graph, { debug: false } as any);
-    expect(svgDefault).toContain('fill="white"');
-
-    // With noMergeCircle: merge uses filled dot (fill="blue")
-    const svgNoCircle = printSvg(graph, { debug: false, noMergeCircle: true } as any);
-    expect(svgNoCircle).not.toContain('fill="white"');
-    expect(svgNoCircle).toContain('fill="blue"');
-  });
 });
