@@ -9,14 +9,14 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
   return {
     reverseCommitOrder: false,
     debug: false,
-    compact: false,
+    compact: true,
     colored: true,
-    includeRemote: false,
+    includeRemote: true,
     format: { type: 'OneLine' },
     wrapping: null,
     characters: Characters.thin(),
     branchOrder: { type: 'ShortestFirst', forward: true },
-    branches: BranchSettings.from(BranchSettingsDef.none()),
+    branches: BranchSettings.from(BranchSettingsDef.gitFlow()),
     mergePatterns: MergePatterns.default(),
     ...overrides,
   };
@@ -55,6 +55,33 @@ describe('SVG snapshot regression', () => {
         const svg = printSvg(graph, settings);
         await expect(svg).toMatchFileSnapshot(
           `__snapshots__/svg-vertical-reverse-${name}.svg`
+        );
+      });
+    }
+  });
+
+  describe('horizontal', () => {
+    for (const { name, chars } of styles) {
+      it(`matches snapshot for ${name} style`, async () => {
+        const settings = makeSettings({ characters: chars });
+        const svg = printSvg(graph, settings, true);
+        await expect(svg).toMatchFileSnapshot(
+          `__snapshots__/svg-horizontal-${name}.svg`
+        );
+      });
+    }
+  });
+
+  describe('horizontal reverse', () => {
+    for (const { name, chars } of styles) {
+      it(`matches snapshot for ${name} style (reverse)`, async () => {
+        const settings = makeSettings({
+          characters: chars.reverse(),
+          reverseCommitOrder: true,
+        });
+        const svg = printSvg(graph, settings, true);
+        await expect(svg).toMatchFileSnapshot(
+          `__snapshots__/svg-horizontal-reverse-${name}.svg`
         );
       });
     }

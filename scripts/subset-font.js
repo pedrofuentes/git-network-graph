@@ -16,6 +16,8 @@ const chars = [
   ...[...Array(112)].map((_, i) => String.fromCodePoint(0x2190 + i)),
   // Mathematical Operators U+2200-U+22FF
   ...[...Array(256)].map((_, i) => String.fromCodePoint(0x2200 + i)),
+  // Miscellaneous Technical U+2300-U+23FF (includes ⌃ ⌄)
+  ...[...Array(256)].map((_, i) => String.fromCodePoint(0x2300 + i)),
   // Box Drawing U+2500-U+257F (full block)
   ...[...Array(128)].map((_, i) => String.fromCodePoint(0x2500 + i)),
   // Block Elements U+2580-U+259F

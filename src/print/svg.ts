@@ -8,7 +8,6 @@ import type { GitGraph } from '../graph';
 import type { Settings } from '../settings';
 import { printUnicode, buildUnicodeGrid, Grid, SPACE, DOT, CIRCLE, VER, HOR, CROSS, R_U, R_D, L_D, L_U, VER_L, VER_R, HOR_U, HOR_D, ARR_L, ARR_R, WHITE } from './unicode';
 import { ansi256ToHex } from './colors';
-import { getDeviateIndex } from './index';
 import chalk from 'chalk';
 
 // Layout constants — Kreative Square SM is a 1:1 (square cell) monospace font
@@ -43,8 +42,8 @@ const SVG_CHAR_OVERRIDE: Record<string, string> = {
  * These are applied on top of SVG_CHAR_OVERRIDE.
  */
 const SVG_HORIZONTAL_OVERRIDE: Record<number, string> = {
-  [ARR_L]: '\u02C4',  // < → ˄ (up arrow)
-  [ARR_R]: '\u02C5',  // > → ˅ (down arrow)
+  [ARR_L]: '\u2303',  // < → ⌃ (up arrowhead)
+  [ARR_R]: '\u2304',  // > → ⌄ (down arrowhead)
 };
 
 function applySvgOverrides(spans: AnsiSpan[]): AnsiSpan[] {
@@ -138,57 +137,57 @@ function renderSvgLine(spans: AnsiSpan[], x: number, y: number): string {
 }
 
 /**
- * Character index mapping for transposing the grid.
- * Transpose swaps axes: left↔up, right↔down.
+ * Character index mapping for 90° clockwise rotation.
+ * Direction transform: UP→RIGHT, RIGHT→DOWN, DOWN→LEFT, LEFT→UP.
  */
-const TRANSPOSE_MAP: Record<number, number> = {
+const ROTATE_CW_MAP: Record<number, number> = {
   [SPACE]: SPACE,
   [DOT]: DOT,
   [CIRCLE]: CIRCLE,
   [VER]: HOR,
   [HOR]: VER,
   [CROSS]: CROSS,
-  [R_U]: L_D,    // └(right+up) → ┐(left+down)
-  [R_D]: R_D,    // ┌(right+down) → ┌(right+down) — symmetric on diagonal
-  [L_D]: R_U,    // ┐(left+down) → └(right+up)
-  [L_U]: L_U,    // ┘(left+up) → ┘(left+up) — symmetric on diagonal
-  [VER_L]: HOR_U, // ┤(up+down+left) → ┴(left+right+up)
-  [VER_R]: HOR_D, // ├(up+down+right) → ┬(left+right+down)
-  [HOR_U]: VER_L, // ┴(left+right+up) → ┤(up+down+left)
-  [HOR_D]: VER_R, // ┬(left+right+down) → ├(up+down+right)
+  [R_U]: R_D,      // └(right+up) → ┌(down+right)
+  [R_D]: L_D,      // ┌(right+down) → ┐(left+down)
+  [L_D]: L_U,      // ┐(left+down) → ┘(left+up)
+  [L_U]: R_U,      // ┘(left+up) → └(right+up)
+  [VER_L]: HOR_U,  // ┤(u+d+l) → ┴(l+r+u)
+  [VER_R]: HOR_D,  // ├(u+d+r) → ┬(l+r+d)
+  [HOR_U]: VER_R,  // ┴(l+r+u) → ├(u+d+r)
+  [HOR_D]: VER_L,  // ┬(l+r+d) → ┤(u+d+l)
   [ARR_L]: ARR_L,
   [ARR_R]: ARR_R,
 };
 
 /**
- * Character index mapping for transposing a reversed grid.
- * Combines the normal transpose (VER↔HOR, corner/T-junction rotation)
- * with an up↔down flip to account for the reversed row order.
+ * Character index mapping for 90° counter-clockwise rotation.
+ * Same corner/junction remapping as CW (branches keep same vertical order),
+ * but arrows are swapped (merge direction reverses with time).
  */
-const TRANSPOSE_MAP_REVERSED: Record<number, number> = {
+const ROTATE_CCW_MAP: Record<number, number> = {
   [SPACE]: SPACE,
   [DOT]: DOT,
   [CIRCLE]: CIRCLE,
   [VER]: HOR,
   [HOR]: VER,
   [CROSS]: CROSS,
-  [R_U]: R_D,
-  [R_D]: R_U,
-  [L_D]: L_U,
-  [L_U]: L_D,
-  [VER_L]: HOR_D,
-  [VER_R]: HOR_U,
-  [HOR_U]: VER_R,
-  [HOR_D]: VER_L,
-  [ARR_L]: ARR_L,
-  [ARR_R]: ARR_R,
+  [R_U]: R_D,      // └ → ┌
+  [R_D]: L_D,      // ┌ → ┐
+  [L_D]: L_U,      // ┐ → ┘
+  [L_U]: R_U,      // ┘ → └
+  [VER_L]: HOR_U,  // ┤ → ┴
+  [VER_R]: HOR_D,  // ├ → ┬
+  [HOR_U]: VER_R,  // ┴ → ├
+  [HOR_D]: VER_L,  // ┬ → ┤
+  [ARR_L]: ARR_R,  // ⌃ → ⌄
+  [ARR_R]: ARR_L,  // ⌄ → ⌃
 };
 
 /**
- * Transpose a grid: swap rows↔columns and remap box-drawing characters.
+ * Rotate a grid 90° clockwise: time flows left(oldest)→right(newest).
+ * Maps original (x, y) → new (H-1-y, x).
  */
-export function transposeGrid(grid: Grid, reversed: boolean = false): Grid {
-  const map = reversed ? TRANSPOSE_MAP_REVERSED : TRANSPOSE_MAP;
+export function rotateGridCW(grid: Grid): Grid {
   const newGrid = new Grid(grid.height, grid.width, {
     character: SPACE,
     color: WHITE,
@@ -198,8 +197,30 @@ export function transposeGrid(grid: Grid, reversed: boolean = false): Grid {
   for (let y = 0; y < grid.height; y++) {
     for (let x = 0; x < grid.width; x++) {
       const cell = grid.data[grid.index(x, y)];
-      const newChar = map[cell.character] ?? cell.character;
-      newGrid.set(y, x, newChar, cell.color, cell.pers);
+      const newChar = ROTATE_CW_MAP[cell.character] ?? cell.character;
+      newGrid.set(grid.height - 1 - y, x, newChar, cell.color, cell.pers);
+    }
+  }
+
+  return newGrid;
+}
+
+/**
+ * Rotate a grid 90° counter-clockwise: time flows left(newest)→right(oldest).
+ * Maps original (x, y) → new (y, W-1-x).
+ */
+export function rotateGridCCW(grid: Grid): Grid {
+  const newGrid = new Grid(grid.height, grid.width, {
+    character: SPACE,
+    color: WHITE,
+    pers: 0,
+  });
+
+  for (let y = 0; y < grid.height; y++) {
+    for (let x = 0; x < grid.width; x++) {
+      const cell = grid.data[grid.index(x, y)];
+      const newChar = ROTATE_CCW_MAP[cell.character] ?? cell.character;
+      newGrid.set(y, grid.width - 1 - x, newChar, cell.color, cell.pers);
     }
   }
 
@@ -297,167 +318,68 @@ function printSvgVertical(graph: GitGraph, settings: Settings): string {
   return elements.join('\n');
 }
 
-// ---- Horizontal SVG — original SVG primitive renderer ----
-
-/**
- * Convert commit index and column to SVG coordinates.
- * When horizontal is true, axes are swapped (time flows left-to-right).
- */
-export function commitCoord(
-  index: number,
-  column: number,
-  horizontal: boolean = false
-): [number, number] {
-  const colCoord = 15.0 * (column + 1);
-  const idxCoord = 15.0 * (index + 1);
-  return horizontal ? [idxCoord, colCoord] : [colCoord, idxCoord];
-}
+// ---- Horizontal SVG — grid-based renderer (90° rotation of vertical) ----
 
 function printSvgHorizontal(graph: GitGraph, settings: Settings): string {
-  const horizontal = true;
-  const elements: string[] = [];
-  const maxIdx = graph.commits.length;
-  let maxColumn = 0;
+  // Build grid without reversal — rotation handles time direction
+  const svgSettings: Settings = { ...settings, colored: true, reverseCommitOrder: false };
 
-  // Debug: draw branch ranges
-  if (settings.debug) {
-    for (const branch of graph.allBranches) {
-      const [start, end] = branch.range;
-      if (start !== null && end !== null) {
-        elements.push(
-          svgBoldLine(start, branch.visual.column!, end, branch.visual.column!, 'cyan', horizontal)
-        );
-      }
-    }
+  const result = buildUnicodeGrid(graph, svgSettings);
+  if (!result) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0"></svg>';
   }
 
-  for (let idx = 0; idx < graph.commits.length; idx++) {
-    const info = graph.commits[idx];
-    const trace = info.branchTrace;
-    if (trace === null) continue;
+  const { grid } = result;
+  // CW rotation: oldest-left → newest-right (conventional)
+  // CCW rotation: newest-left → oldest-right (reversed)
+  const rotated = settings.reverseCommitOrder
+    ? rotateGridCCW(grid)
+    : rotateGridCW(grid);
 
-    const branch = graph.allBranches[trace];
-    const branchColor = branch.visual.svgColor;
-    const column = branch.visual.column!;
+  const width = PADDING_X * 2 + rotated.width * CHAR_WIDTH;
+  const height = PADDING_Y * 2 + rotated.height * LINE_HEIGHT;
 
-    if (column > maxColumn) {
-      maxColumn = column;
-    }
-
-    for (let p = 0; p < 2; p++) {
-      const parOid = info.parents[p];
-      if (!parOid) continue;
-
-      const parIdx = graph.indices.get(parOid);
-      if (parIdx === undefined) {
-        elements.push(svgLine(idx, column, maxIdx, column, branchColor, horizontal));
-        continue;
-      }
-
-      const parInfo = graph.commits[parIdx];
-      const parBranch = graph.allBranches[parInfo.branchTrace!];
-
-      const color = info.isMerge ? parBranch.visual.svgColor : branchColor;
-
-      if (branch.visual.column === parBranch.visual.column) {
-        elements.push(
-          svgLine(idx, column, parIdx, parBranch.visual.column!, color, horizontal)
-        );
-      } else {
-        const splitIndex = getDeviateIndex(graph, idx, parIdx);
-        elements.push(
-          svgPath(
-            idx,
-            column,
-            parIdx,
-            parBranch.visual.column!,
-            splitIndex,
-            color,
-            horizontal
-          )
-        );
-      }
-    }
-
-    if (!settings.mergesOnly || info.isMerge) {
-      elements.push(
-        svgCommitDot(idx, column, branchColor, !info.isMerge, horizontal)
-      );
-    }
-  }
-
-  const [xMax, yMax] = commitCoord(maxIdx + 1, maxColumn + 1, horizontal);
-
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${xMax} ${yMax}" width="${xMax}" height="${yMax}">`,
-    ...elements,
-    '</svg>',
-  ].join('\n');
-}
-
-function svgCommitDot(
-  index: number,
-  column: number,
-  color: string,
-  filled: boolean,
-  horizontal: boolean = false
-): string {
-  const [x, y] = commitCoord(index, column, horizontal);
-  return `<circle cx="${x}" cy="${y}" r="4" fill="${filled ? color : 'white'}" stroke="${color}" stroke-width="1"/>`;
-}
-
-function svgLine(
-  index1: number,
-  column1: number,
-  index2: number,
-  column2: number,
-  color: string,
-  horizontal: boolean = false
-): string {
-  const [x1, y1] = commitCoord(index1, column1, horizontal);
-  const [x2, y2] = commitCoord(index2, column2, horizontal);
-  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1"/>`;
-}
-
-function svgBoldLine(
-  index1: number,
-  column1: number,
-  index2: number,
-  column2: number,
-  color: string,
-  horizontal: boolean = false
-): string {
-  const [x1, y1] = commitCoord(index1, column1, horizontal);
-  const [x2, y2] = commitCoord(index2, column2, horizontal);
-  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="5"/>`;
-}
-
-function svgPath(
-  index1: number,
-  column1: number,
-  index2: number,
-  column2: number,
-  splitIdx: number,
-  color: string,
-  horizontal: boolean = false
-): string {
-  const c0 = commitCoord(index1, column1, horizontal);
-  const c1 = commitCoord(splitIdx, column1, horizontal);
-  const c2 = commitCoord(splitIdx + 1, column2, horizontal);
-  const c3 = commitCoord(index2, column2, horizontal);
-
-  const m: [number, number] = [
-    0.5 * (c1[0] + c2[0]),
-    0.5 * (c1[1] + c2[1]),
+  const elements: string[] = [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">`,
+    svgFontFace(),
+    `<rect width="100%" height="100%" fill="${BG_COLOR}"/>`,
   ];
 
-  const d = [
-    `M ${c0[0]} ${c0[1]}`,
-    `L ${c1[0]} ${c1[1]}`,
-    `Q ${c1[0]} ${m[1]} ${m[0]} ${m[1]}`,
-    `Q ${c2[0]} ${m[1]} ${c2[0]} ${c2[1]}`,
-    `L ${c3[0]} ${c3[1]}`,
-  ].join(' ');
+  elements.push(`<g font-family="${FONT_FAMILY}" font-size="${FONT_SIZE}" dominant-baseline="text-before-edge">`);
 
-  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1"/>`;
+  for (let y = 0; y < rotated.height; y++) {
+    const spans: AnsiSpan[] = [];
+    for (let x = 0; x < rotated.width; x++) {
+      const cell = rotated.data[rotated.index(x, y)];
+      if (cell.character === SPACE) {
+        spans.push({ text: ' ' });
+      } else {
+        const charStr = resolveHorizontalChar(cell.character, settings.characters);
+        const color = cell.color !== WHITE ? ansi256ToHex(cell.color) : undefined;
+        spans.push(color ? { text: charStr, color } : { text: charStr });
+      }
+    }
+
+    // Trim trailing whitespace-only spans
+    while (spans.length > 0) {
+      const last = spans[spans.length - 1];
+      const trimmed = last.text.replace(/\s+$/, '');
+      if (trimmed.length === 0) {
+        spans.pop();
+      } else {
+        spans[spans.length - 1] = { ...last, text: trimmed };
+        break;
+      }
+    }
+
+    if (spans.length === 0) continue;
+    const sx = PADDING_X;
+    const sy = PADDING_Y + y * LINE_HEIGHT;
+    elements.push(renderSvgLine(spans, sx, sy));
+  }
+
+  elements.push('</g>');
+  elements.push('</svg>');
+
+  return elements.join('\n');
 }
