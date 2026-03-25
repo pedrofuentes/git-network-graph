@@ -19,7 +19,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
 
       - run: npm ci
 
@@ -47,4 +46,6 @@ jobs:
           body: ${{ steps.notes.outputs.notes }}
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          npm install -g npm@latest
+          npm publish --provenance --access public
