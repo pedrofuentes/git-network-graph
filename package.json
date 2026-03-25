@@ -11,7 +11,7 @@
     }
   },
   "bin": {
-    "git-network-graph": "dist/cli.js"
+    "git-network-graph": "./dist/cli.js"
   },
   "files": [
     "dist",
